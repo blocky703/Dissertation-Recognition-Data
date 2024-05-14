@@ -1,0 +1,540 @@
+# Set working directory
+setwd("~/Dissertation/Data sets/Logit data")
+
+# Open packages
+library(ggplot2)
+library(dplyr)
+library(car)
+
+
+
+# Load in csv file
+diss <- read.csv("merged palestine diss data2.csv", row.names = 1, header = TRUE, as.is = TRUE)
+diss$continent <- trimws(diss$continent)
+View(diss)
+
+
+
+# Freq count of recognition years
+str(diss$recogyear)
+year_tab <- table(diss$recogyear)
+year_df <- as.data.frame(year_tab)
+
+ggplot(year_df, aes(x=Var1, y=Freq)) + 
+  geom_bar(stat="identity", fill="steelblue") +
+  geom_text(aes(label=Freq), vjust=-0.3, color="black", size=3.5) + 
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    plot.title = element_text(face="bold", hjust = 0.5),  
+    axis.text.x = element_text(angle = 45, hjust = 1)  
+  ) +
+  labs(
+    x="Recognition Year", 
+    y="Number of Countries", 
+    title="Graph 1: Number of Countries that Recognised Palestine each Year"
+  )
+
+# Add columns 
+diss$col_power <- apply(diss[, c("col.belgium", "col.britain", "col.france", "col.germany", "col.italy", 
+                                 "col.netherlands", "col.portugal", "col.portugal", "col.spain")], 1, function(x) {
+                                   if(all(is.na(x))) { 
+                                     NA 
+                                   } else { 
+                                     sum(x, na.rm = TRUE) 
+                                   }
+                                 })
+
+diss <- diss %>%
+  mutate(col_binary = as.integer(rowSums(select(., col.belgium, col.britain, col.france, col.germany, 
+                                                      col.italy, col.netherlands, col.portugal, col.spain)) > 0))
+
+diss <- diss %>%
+  mutate(is_muslim = case_when(
+    large_religion_2020 == "MUS" | largest_religion_2010 == "MUS" ~ 1,  # If Muslim in either year, set to 1
+    large_religion_2020 %in% c("CHR", "HIN", "BUD", "FOL", "JEW", "OTH", "UNA") | 
+      largest_religion_2010 %in% c("CHR", "HIN", "BUD", "FOL", "JEW", "OTH", "UNA") ~ 0,  # If another recognized religion in either year, set to 0
+    is.na(large_religion_2020) & is.na(largest_religion_2010) ~ NA_real_,  # If NA in both years, set to NA
+    TRUE ~ NA_real_  # Catch-all for any other scenario, set to NA
+  ))
+
+# Build models
+
+# subset the data in counties that recognised in 2010 to 2012, as there is a peak in 2011
+subset_diss <- diss %>%
+  filter((recogyear == 2010) | recogyear == 2011 | (recogyear == 2012) | is.na(recogyear))
+
+# View the subsetted data
+View(subset_diss)
+table(subset_diss$recogyear)
+
+# Relevel PR to 2
+subset_diss$PR2010 <- as.factor(subset_diss$PR2010)
+
+subset_diss$PR2010<- relevel(subset_diss$PR2010, ref = "2")
+
+model23 <- glm(formula = recog_bin ~ col_binary + DI2010 + X2010 + FR2010 + US2010, 
+               family = binomial(link = "logit"), data = subset_diss)
+summary(model23)
+
+model26 <- glm(formula = recog_bin ~ col_binary + as.factor(PR2010) + X2010 + FR2010 + US2010, 
+               family = binomial(link = "logit"), data = subset_diss)
+summary(model26)
+
+# Make a new PR2010.new col that puts all autocracies under one umbrella, to help mitigate separation.
+# 0 and 1 are autocracies, 2 and 3 are democracies 
+
+
+subset_diss <- subset_diss %>%
+  mutate(PR2010.new = case_when(
+    PR2010 %in% c(0, 1) ~ "autocracy",  # Group 0 and 1 as autocracy
+    PR2010 %in% c(2, 3) ~ "democracy",  # Group 2 and 3 as democracy
+    TRUE ~ as.character(PR2010)         # Just in case there are unexpected values
+  ))
+
+# Convert the new PR2010.new to a factor for modeling
+subset_diss$PR2010.new <- as.factor(subset_diss$PR2010.new)
+
+# Relevel to democracy as baseline
+subset_diss$PR2010.new<- relevel(subset_diss$PR2010.new, ref = "democracy")
+
+# New model summary
+model26_new <- glm(formula = recog_bin ~ col_binary + as.factor(PR2010.new) + X2010 + FR2010 + US2010,
+                   family = binomial(link = "logit"), data = subset_diss)
+
+summary(model26_new)
+
+
+# Model 23 AIC is 42.75, no significant effects, model 26 with PR has separation issues
+
+model24 <- glm(formula = recog_bin ~ col_binary + FREXFUEL2010+ UKEXFUEL2010 + USEXFUEL2010 +CHIEXFUEL2010 + RUEXFUEL2010
+               + DI2010 , family = binomial(link = "logit"), data = subset_diss)
+summary(model24)
+# Very small coeffs, col_binary significant at 10%. AIC 63.8
+
+model25_im <- glm(formula = recog_bin ~ col_binary + FRIM2010+ UKIM2010 + USIM2010 +CHIIM2010 + RUIM2010
+               + DI2010 , family = binomial(link = "logit"), data = subset_diss)
+
+model25_im_PR <- glm(formula = recog_bin ~ col_binary + FRIM2010+ UKIM2010 + USIM2010 +CHIIM2010 + RUIM2010
+                     + as.factor(PR2010.new) , family = binomial(link = "logit"), data = subset_diss)
+summary(model25_im)
+summary(model25_im_PR)
+
+model25 <- glm(formula = recog_bin ~ col_binary + FREX2010+ UKEX2010 + USEX2010 +CHIEX2010 + RUEX2010
+               + DI2010 , family = binomial(link = "logit"), data = subset_diss)
+
+
+
+model25_PR <- glm(formula = recog_bin ~ col_binary + FREX2010+ UKEX2010 + USEX2010 +CHIEX2010 + RUEX2010
+               + as.factor(PR2010.new) , family = binomial(link = "logit"), data = subset_diss)
+
+
+summary(model25)
+summary(model25_PR)
+# Very small coeffs, col_binary significant at 10%. AIC 62.6
+
+# Best model for 2010-2012 is model 23. 
+
+# do the same for 1988 - 1995recognition 
+subset_diss2 <- diss %>%
+  filter((recogyear == 1988) | recogyear == 1989 | recogyear == 1991 |
+           recogyear == 1992 | recogyear == 1994 | recogyear == 1995 |is.na(recogyear))
+View(subset_diss2)
+
+
+# Re level so electoral dem (2) is base
+subset_diss2$PR1988 <- as.factor(subset_diss2$PR1988)
+
+subset_diss2$PR1988<- relevel(subset_diss2$PR1988, ref = "2")
+
+model10 <- glm(formula = recog_bin ~ col_binary + as.factor(PR1988)  , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model10)
+# AIC:  114, no separation issues here 
+
+model11 <- glm(formula = recog_bin ~ col_binary + as.factor(PR1988) + X1988 + US1988 + FR1988
+               , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model11)
+# AIC: 51.6, PR1988 = 0 is significant at the 10% level 
+
+# Remodel model11 using democracy and autocracy groupings 
+
+# Make a new PR1988.new col that puts all autocracies under one umbrella, to check if model fit is better
+# 0 and 1 are autocracies, 2 and 3 are democracies 
+
+subset_diss2 <- subset_diss2 %>%
+  mutate(PR1988.new = case_when(
+    PR1988 %in% c(0, 1) ~ "autocracy",  # Group 0 and 1 as autocracy
+    PR1988 %in% c(2, 3) ~ "democracy",  # Group 2 and 3 as democracy
+    TRUE ~ as.character(PR1988)         # Just in case there are unexpected values
+  ))
+
+View(subset_diss2)
+# Convert the new PR1988.new to a factor for modeling
+subset_diss2$PR1988.new <- as.factor(subset_diss2$PR1988.new)
+
+# Relevel to democracy as baseline
+subset_diss2$PR1988.new<- relevel(subset_diss2$PR1988.new, ref = "democracy")
+
+# New model summary
+model11_new <- glm(formula = recog_bin ~ col_binary + as.factor(PR1988.new) + X1988 + US1988 + FR1988
+               , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model11_new)
+# Model11_new has AIC 48.44. Signalling better model fit. 
+
+
+# Model 11 with export links
+model14 <- glm(formula = recog_bin ~ col_binary + as.factor(PR1988.new) 
+               + FREX2004 + UKEX2004 + USEX2004 +RUEX2002 + CHIEX2004 , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model14)
+
+
+model19 <- glm(formula = recog_bin ~ col_binary + DI2006
+               + FREX2004 + UKEX2004 + USEX2004 +RUEX2002 + CHIEX2004 , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model19)
+
+# imports
+model14_im_PR <- glm(formula = recog_bin ~ col_binary + as.factor(PR1988.new) 
+                  + FRIM2004 + UKIM2004 + USIM2004 +RUIM2002 + CHIIM2004 , family = binomial(link = "logit"), data = subset_diss2 )
+
+
+
+model14_im <- glm(formula = recog_bin ~ col_binary + DI2006 
+                  + FRIM2004 + UKIM2004 + USIM2004 +RUIM2002 + CHIIM2004 , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model14_im_PR)
+summary(model14_im)
+
+# Model 11 51, model 14 is 56. Model 11 still better fit
+
+# Model 15 using DI not PR
+model15 <- glm(formula = recog_bin ~ col_binary + DI2006 + X1988 + US1988 + FR1988
+              , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model15)
+vif(model15) # No multicollinaerity issues detected 
+# AIC IS 44.5! but no significant results 
+
+# Here, model 11 uses PR for democratic values variable, and shows mutual autocracy to be 
+# a significant predictor at 10%. However, swapping for the DI. The index does not show any significant results in model 15.
+
+# Model 15 is a better fit than model 11, but still bodes interesting results for mutual political regimes. 
+
+# Lets try col_power 
+model16 <- glm(formula = recog_bin ~ col_power + DI2006 + X1988 + US1988 + FR1988
+               , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model16)
+# 45.9 so col_bin is better than col_power here 
+
+# MODEL 15 IS BEST FIT SO FAR 
+
+
+# SELECTED MODELS -----------------------------------------------------------------------------------
+
+# 2010-2012 recognition peak models
+# Uses col_binary, DI, Aid data: {X2010, FR2010, and US2010}. AIC: 42.7. No siginificant effects. 
+summary(model23)
+
+# Uses col_binary, Political Regime (PR2010.new), Aid data: {X2010, FR2010, and US2010}. AIC: 46.7. No significant effects.
+summary(model26_new)
+
+# 1988-1995 recognition peak models
+
+# Uses col_binary, Political Regime (PR1988),Aid Data: { X1988, US1988, FR1988}. AIC: 51.6. PR2010 = 0 (closed autocracies significant at p = 0.10)
+# Palestine (West Bank) was a closed autocracy in 1988 (data unavailable for Gaza, but also 0 from 2010-2022)
+# Suggests that mutual closed autocracy of a third party and the secessionist Palestinian state may increase support for its secession. 
+summary(model11)
+
+# Uses col_binary, Political Regime (PR1988.new ),Aid Data: { X1988, US1988, FR1988}. AIC: 48.6
+# Better model fit and autocracies significant at 10%. 
+
+summary(model11_new)
+
+# Uses col_binary, Democracy Index(2006), Aid Data: { X1988, US1988, FR1988}. AIC: 44.908. No significant effects. 
+summary(model15)
+
+# Arguably, data availability for PR in 1988 may make model 11 more superior to uses DI2006, even if AIC is smaller. 
+
+
+# Calculate the probability of 1988-1995 autocracy
+
+coeff_autocracy <- 1.5583569
+
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+source("https://sebastiansauer.github.io/Rcode/logit2prob.R")
+
+logit2prob(coeff_autocracy)
+
+# Odds - 4.751
+exp(coeff_autocracy)
+
+# Test Assumptions
+
+# Assumption 1: Multicollinearity 
+vif(model23) 
+vif(model26_new)
+vif(model11_new)
+vif(model15)
+
+# Assumption 2:  Linearity
+
+
+# Model 23
+subset_diss$model23_fitted_values <- predict(model23, type = "response", newdata = subset_diss)
+
+plot_model23 <- function() {
+  predictors <- c("DI2010", "X2010", "FR2010", "US2010")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss, aes_string(x = var, y = "model23_fitted_values")) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 23 - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Model 26_new
+subset_diss$model26_new_fitted_values <- predict(model26_new, type = "response", newdata = subset_diss)
+
+plot_model26_new <- function() {
+  predictors <- c("X2010", "FR2010", "US2010")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss, aes_string(x = var, y = "model26_new_fitted_values")) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 26_new - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Model 11_new
+subset_diss2$model11_new_fitted_values <- predict(model11_new, type = "response", newdata = subset_diss2)
+
+plot_model11_new <- function() {
+  predictors <- c("X1988", "US1988", "FR1988")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss2, aes_string(x = var, y = "model11_new_fitted_values")) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 11_new - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Model 15
+subset_diss2$model15_fitted_values <- predict(model15, type = "response", newdata = subset_diss2)
+
+plot_model15 <- function() {
+  predictors <- c("DI2006", "X1988", "US1988", "FR1988")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss2, aes_string(x = var, y = "model15_fitted_values")) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 15 - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Function to plot all the predictors
+
+plots23 <- plot_model23()
+plots26_new <- plot_model26_new()
+plots11_new <- plot_model11_new()
+plots15 <- plot_model15()
+
+# Function 
+print_plots <- function(plots) {
+  for (i in seq_along(plots)) {
+    print(plots[[i]])
+  }
+}
+
+
+print_plots(plots23)
+print_plots(plots26_new)
+print_plots(plots11_new)
+print_plots(plots15)
+
+# Assumption 3: Model fit
+
+# Evaluated using AIC 
+
+# Assumption 4: Influential Cases
+par(mfrow=c(2,2)) 
+plot(model23)
+plot(model26_new)
+plot(model11_new)
+plot(model15)
+
+# Significant missingness issue
+
+
+# Robustness against linearity violation 
+
+# Transformations for subset_diss (2010-2012)
+subset_diss$log_DI2010 <- log(subset_diss$DI2010 + 1)  # Avoid log(0) - Exponential 
+subset_diss$sqrt_X2010 <- sqrt(subset_diss$X2010) # Right Skewed
+subset_diss$square_FR2010 <- subset_diss$FR2010^2 # Square
+subset_diss$square_US2010 <- subset_diss$US2010^2 # Square
+subset_diss$cubic_FR2010 <- subset_diss$FR2010^3 # Cubic
+subset_diss$cubic_US2010 <- subset_diss$US2010^3 # Cubic
+subset_diss$square_DI2010 <- subset_diss$DI2010^2 # Square
+subset_diss$cubic_DI2010 <- subset_diss$DI2010^3 # Cubic
+subset_diss$square_X2010 <- subset_diss$X2010^2 # Square
+subset_diss$cubic_X2010 <- subset_diss$X2010^3 # Cubic
+subset_diss$log_FR2010 <- log(subset_diss$FR2010 + 1)  # Avoid log(0) - Exponential 
+subset_diss$log_US2010 <- log(subset_diss$US2010 + 1)  # Avoid log(0) - Exponential 
+subset_diss$log_X2010 <- log(subset_diss$X2010 + 1)  # Avoid log(0) - Exponential 
+
+
+# Transformations for subset_diss2 (1988-1995)
+subset_diss2$log_DI2006 <- log(subset_diss2$DI2006 + 1)  # Avoid log(0) - Exponential 
+subset_diss2$sqrt_DI2006 <- sqrt(subset_diss2$DI2006) # Right Skewed
+subset_diss2$square_X1988 <- subset_diss2$X1988^2 # Square
+subset_diss2$cubic_US1988 <- subset_diss2$US1988^3 # Cubic
+subset_diss2$square_FR1988 <- subset_diss2$FR1988^2 # Square
+subset_diss2$cubic_FR1988 <- subset_diss2$FR1988^3 # Cubic
+subset_diss2$square_DI2006 <- subset_diss2$DI2006^2 # Square
+subset_diss2$cubic_DI2006 <- subset_diss2$DI2006^3 # Cubic
+subset_diss2$square_X1988 <- subset_diss2$X1988^2 # Square
+subset_diss2$cubic_X1988 <- subset_diss2$X1988^3 # Cubic
+subset_diss2$log_X1988 <- log(subset_diss2$X1988 + 1)  # Avoid log(0) - Exponential 
+subset_diss2$log_US1988 <- log(subset_diss2$US1988 + 1)  # Avoid log(0) - Exponential 
+subset_diss2$log_FR1988 <- log(subset_diss2$FR1988 + 1)  # Avoid log(0) - Exponential 
+
+
+# New transformed plots for 
+# SPecific transformations selected according to inspected deduction of the curve shape. 
+
+
+# Model 23 - DI not fitting
+subset_diss$model23_fitted_values <- predict(model23, type = "response", newdata = subset_diss)
+
+plot_model23_2 <- function() {
+  predictors <- c("square_DI2010", "cubic_X2010", "cubic_FR2010", "square_US2010")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss, aes(x = .data[[var]], y = model23_fitted_values)) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 23_2 - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Model 26_new - Linear assumptions met
+subset_diss$model26_new_fitted_values <- predict(model26_new, type = "response", newdata = subset_diss)
+
+plot_model26_new_2 <- function() {
+  predictors <- c("cubic_X2010", "cubic_FR2010", "cubic_US2010")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss, aes(x = .data[[var]], y = model26_new_fitted_values)) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 26_new_2 - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Model 11_new
+subset_diss2$model11_new_fitted_values <- predict(model11_new, type = "response", newdata = subset_diss2)
+
+plot_model11_new_2 <- function() {
+  predictors <- c("log_X1988", "cubic_US1988", "log_FR1988")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss2, aes(x = .data[[var]], y = model11_new_fitted_values)) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 11_new_2 - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+
+# Model 15 - DI violaetes linearity a lot
+subset_diss2$model15_fitted_values <- predict(model15, type = "response", newdata = subset_diss2)
+
+plot_model15_2 <- function() {
+  predictors <- c("sqrt_DI2006", "log_X1988", "cubic_US1988", "log_FR1988")
+  plots <- lapply(predictors, function(var) {
+    ggplot(subset_diss2, aes(x = .data[[var]], y = model15_fitted_values)) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", colour = "red") +
+      labs(title = paste("Model 15_2 - Predictor:", var), x = var, y = "Fitted Probability") +
+      theme_minimal()
+  })
+  return(plots)
+}
+# Generate plots
+plots23_2 <- plot_model23_2()
+plots26_new_2 <- plot_model26_new_2()
+plots11_new_2 <- plot_model11_new_2()
+plots15_2 <- plot_model15_2()
+
+print_plots(plots23_2)
+print_plots(plots26_new_2)
+print_plots(plots11_new_2)
+print_plots(plots15_2)
+
+
+# Summary for transformed models
+
+# 1988-1995 Transformed Models 
+model11_2 <- glm(formula = recog_bin ~ col_binary + as.factor(PR1988) + log_X1988 + cubic_US1988 + log_FR1988
+                 , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model11_2)
+
+model15_2 <- glm(formula = recog_bin ~ col_binary + sqrt_DI2006 + log_X1988 + cubic_US1988 + log_FR1988
+               , family = binomial(link = "logit"), data = subset_diss2 )
+summary(model15_2)
+
+# 2010-2012 Transformed Models
+model26_2 <- glm(formula = recog_bin ~ col_binary + as.factor(PR2010) + cubic_X2010 + cubic_FR2010 + cubicUS2010, 
+               family = binomial(link = "logit"), data = subset_diss)
+summary(model26_2)
+
+model23_2 <- glm(formula = recog_bin ~ col_binary + sqaure_DI2010 + cubic_X2010 + cubic_FR2010 + cubic_US2010, 
+                 family = binomial(link = "logit"), data = subset_diss)
+summary(model23_2)
+
+
+# Missingness
+
+calculate_missingness <- function(data, columns) {
+  missingness <- sapply(data[, columns, drop = FALSE], function(x) {
+    sum(is.na(x)) / nrow(data) * 100
+  })
+  return(missingness)
+}
+
+# Calculate missingness for Model 23
+columns_model23 <- c("recog_bin", "col_binary", "DI2010", "X2010", "FR2010", "US2010")
+missing_model23 <- calculate_missingness(subset_diss, columns_model23)
+print("Missingness for Model 23:")
+print(missing_model23)
+
+# Calculate missingness for Model 26_new
+columns_model26_new <- c("recog_bin", "col_binary", "PR2010.new", "X2010", "FR2010", "US2010")
+missing_model26_new <- calculate_missingness(subset_diss, columns_model26_new)
+print("Missingness for Model 26_new:")
+print(missing_model26_new)
+
+# Calculate missingness for Model 11_new
+columns_model11_new <- c("recog_bin", "col_binary", "PR1988.new", "X1988", "US1988", "FR1988")
+missing_model11_new <- calculate_missingness(subset_diss2, columns_model11_new)
+print("Missingness for Model 11_new:")
+print(missing_model11_new)
+
+# Calculate missingness for Model 15
+columns_model15 <- c("recog_bin", "col_binary", "DI2006", "X1988", "US1988", "FR1988")
+missing_model15 <- calculate_missingness(subset_diss2, columns_model15)
+print("Missingness for Model 15:")
+print(missing_model15)
+
