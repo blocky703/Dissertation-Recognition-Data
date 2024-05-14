@@ -1,0 +1,360 @@
+Cleaning and Merging Procedures
+# set working directory 
+setwd("~/Dissertation/Data sets/Aid data/UK Aid")
+
+# Open packages
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+
+
+
+# Function to replace specific country names in a dataframe's column based on a provided mapping
+replace_country_names <- function(df, column_name, name_mapping) {
+  # Check if the column exists in the dataframe
+  if (!column_name %in% names(df)) {
+    stop("The specified column does not exist in the dataframe.")
+  }
+  
+  # Replace the country names based on the name_mapping
+  df[[column_name]] <- sapply(df[[column_name]], function(name) {
+    # If the name is in the name mapping, return the new name, else return the name unchanged
+    if (name %in% names(name_mapping)) {
+      return(name_mapping[name])
+    } else {
+      return(name)
+    }
+  })
+  
+  return(df)
+}
+
+# Mapping of old country names (OG) to new names (NEW) as provided
+country_name_mapping <- c(
+  "China (People's Republic of)" = "China",
+  "United States of America" = "United States",
+  "Hong Kong, China" = "Hong Kong (China)",
+  "Korea, Republic of" = "Korea",
+  "Russian Federation" = "Russia",
+  "Taipei, Chinese" = "Chinese Taipei",
+  "Iran, Islamic Republic of" = "Iran",
+  "Tanzania, United Republic of" = "Tanzania",
+  "Congo, Democratic Republic of the" = "Democratic Republic of the Congo",
+  "Macao, China" = "Macau (China)",
+  "Venezuela, Bolivarian Republic of" = "Venezuela",
+  "Korea, Democratic People's Republic of" = "Democratic People's Republic of Korea",
+  "Bolivia, Plurinational State of" = "Bolivia",
+  "Macedonia, North" = "North Macedonia",
+  "Moldova, Republic of" = "Moldova",
+  "Palestine, State of" = "West Bank and Gaza Strip",
+  "Curaçao" = "Curaçao",
+  "Sint Maarten (Dutch part)" = "Sint Maarten",
+  "Micronesia, Federated States of" = "Micronesia",
+  "Falkland Islands (Malvinas)" = "Falkland Islands",
+  "Libya, State of" = "Libya",
+  "Viet Nam" = "VietNam",
+  "Wallis and Futuna" = "Wallis and Futuna Islands"
+)
+
+# Load data sets
+
+# Aid data
+uk_aid <- read.csv("UK aid.csv")
+us_aid <- read.csv("US aid.csv")
+france_aid <- read.csv("France aid.csv")
+
+# Binary var and continent data set
+recog <- read.csv("Palestinian recognition checker.csv")
+recog <- recog %>% 
+  select(-c(X, X.1, X.2, X.3, X.4))
+
+# Total exports by Great Powers data set
+chi_ex <- read.csv("China exports 0423.csv")
+fr_ex <- read.csv("France Exports 0423.csv")
+russia_ex <- read.csv("Russia exports 0221.csv")
+uk_ex <- read.csv("UK exports 0423.csv")
+us_ex <- read.csv("USA exports 0423.csv")
+
+# Total fuel exports by Great Powers data set
+
+china_fuel_ex <- read.csv("China fuel exports 0423.csv")
+france_fuel_ex <- read.csv("France fuel exports 0423.csv")
+russia_fuel_ex <- read.csv("Russia fuel exports 0221.csv")
+uk_fuel_ex <- read.csv("UK fuel exports 0423.csv")
+us_fuel_ex <- read.csv("USA fuel exports 0423.csv")
+
+# Total imports by Great Powers data set
+china_im <- read.csv("China imports 0423.csv")
+france_im <- read.csv("France imports 0423.csv")
+russia_im <- read.csv("Russia imports 0221.csv")
+uk_im <- read.csv("UK imports 0423.csv")
+us_im <- read.csv("USA imports 0423.csv")
+
+# Total fuel imports by Great Powers data set 
+china_fuel_im <- read.csv("China fuel imports 0423.csv")
+france_fuel_im <- read.csv("France fuel imports 0423.csv")
+russia_fuel_im <- read.csv("Russia fuel imports 0221.csv")
+uk_fuel_im <- read.csv("UK fuel imports 0423.csv")
+us_fuel_im <- read.csv("USA fuel imports 0423.csv")
+
+# Colonial dates COLDAT data set
+coldat <- read.csv("COLDAT_colonies_clean2.csv")
+
+# Rename coloumns for consistency
+
+colnames(uk_aid)[colnames(uk_aid) == "Year"] <- "country" 
+colnames(us_aid)[colnames(us_aid) == "Year"] <- "country" 
+colnames(france_aid)[colnames(france_aid) == "Year"] <- "country" 
+colnames(recog)[colnames(recog) == "X"] <- "country"
+colnames(us_ex)[colnames(us_ex) == "Importers"] <- "country"
+
+
+# Remove leading and trailing spaces from country names in all datasets
+uk_aid$country <- trimws(uk_aid$country)
+us_aid$country <- trimws(us_aid$country)
+france_aid$country <- trimws(france_aid$country)
+recog$country <- trimws(recog$country)
+
+# Changing aid names
+uk_aid <- replace_country_names(uk_aid, "country", country_name_mapping)
+us_aid <- replace_country_names(us_aid, "country", country_name_mapping)
+france_aid <- replace_country_names(france_aid, "country", country_name_mapping)
+
+# Changing recog names
+recog<- replace_country_names(recog, "country", country_name_mapping)
+# Changing total exports name
+chi_ex <- replace_country_names(chi_ex, "country", country_name_mapping)
+fr_ex <- replace_country_names(fr_ex, "country", country_name_mapping)
+russia_ex <- replace_country_names(russia_ex, "country", country_name_mapping)
+uk_ex <- replace_country_names(uk_ex, "country", country_name_mapping)
+us_ex <- replace_country_names(us_ex, "country", country_name_mapping)
+
+# Changing total fuel exports name
+
+china_fuel_ex<- replace_country_names(china_fuel_ex, "country", country_name_mapping)
+france_fuel_ex <- replace_country_names(france_fuel_ex, "country", country_name_mapping)
+russia_fuel_ex <- replace_country_names(russia_fuel_ex, "country", country_name_mapping)
+uk_fuel_ex <- replace_country_names(uk_fuel_ex, "country", country_name_mapping)
+us_fuel_ex <- replace_country_names(us_fuel_ex, "country", country_name_mapping)
+
+# Changing total imports name
+china_im <- replace_country_names(china_im, "country", country_name_mapping)
+france_im <- replace_country_names(france_im, "country", country_name_mapping)
+russia_im <- replace_country_names(russia_im, "country", country_name_mapping)
+uk_im <- replace_country_names(uk_im, "country", country_name_mapping)
+us_im <- replace_country_names(us_im, "country", country_name_mapping)
+
+# Changing total fuel imports name
+
+china_fuel_im <- replace_country_names(china_fuel_im, "country", country_name_mapping)
+france_fuel_im <- replace_country_names(france_fuel_im, "country", country_name_mapping)
+russia_fuel_im <- replace_country_names(russia_fuel_im, "country", country_name_mapping)
+uk_fuel_im <- replace_country_names(uk_fuel_im, "country", country_name_mapping)
+us_fuel_im <- replace_country_names(us_fuel_im, "country", country_name_mapping)
+
+# Merging
+
+
+merged1 <- merge(uk_aid, recog, by = "country", all = TRUE)
+
+merged1 <- merged1 %>%
+  select(country, recog_bin, recog_date, continent, everything())
+
+
+merged2 <- merge(merged1, us_aid, by = "country", all = TRUE)
+
+merged3 <- merge(merged2, france_aid, by = "country", all = TRUE)
+
+merged4 <- merge(merged3, chi_ex, by = "country", all = TRUE)
+
+merged5 <- merge(merged4, fr_ex, by = "country", all = TRUE)
+
+merged6 <- merge(merged5, russia_ex, by = "country", all = TRUE)
+
+merged7 <- merge(merged6, uk_ex, by = "country", all = TRUE)
+
+merged8 <- merge(merged7, us_ex, by = "country", all = TRUE)
+
+merged9 <- merge(merged8, china_fuel_ex, by = "country", all = TRUE)
+
+merged10 <- merge(merged9, france_fuel_ex, by = "country", all = TRUE)
+
+merged11 <- merge(merged10, russia_fuel_ex, by = "country", all = TRUE)
+
+merged12 <- merge(merged11, uk_fuel_ex, by = "country", all = TRUE)
+
+merged13 <- merge(merged12, us_fuel_ex, by = "country", all = TRUE)
+
+# Rearrange into first three columns
+merged14 <- merge(merged13, china_im, by = "country", all = TRUE)
+merged15 <- merge(merged14, france_im, by = "country", all = TRUE)
+merged16 <- merge(merged15, russia_im, by = "country", all = TRUE)
+merged17 <- merge(merged16, uk_im, by = "country", all = TRUE)
+merged18 <- merge(merged17, us_im, by = "country", all = TRUE)
+
+merged19 <- merge(merged18, china_fuel_im, by = "country", all = TRUE)
+merged20 <- merge(merged19, france_fuel_im, by = "country", all = TRUE)
+merged21 <- merge(merged20, russia_fuel_im, by = "country", all = TRUE)
+merged22 <- merge(merged21, uk_fuel_im, by = "country", all = TRUE)
+merged23 <- merge(merged22, us_fuel_im, by = "country", all = TRUE)
+merged24 <- merge(merged23, coldat, by = "country", all = TRUE)
+
+# All aid, recog, continent, export,fuel export, import, fuel import data 
+View(merged24)
+
+# Remove all arbritrary NA from country coloumn 
+
+# load in political regimes data base
+#pol_regime <- read.csv("political-regime.csv")
+#View(pol_regime)
+
+# Filter for years 1985, 1988, 2000, 2010, 2020, 2022
+
+# Filter the dataset for specific years
+#filtered_pol_regime <- pol_regime %>%
+  #filter(Year %in% c("1985", "1988", "2000", "2010", "2020", "2022"))
+
+# View the filtered data
+#View(filtered_pol_regime)
+
+# Pivot the dataset to a wide format
+#wide_pol_regime <- filtered_pol_regime %>%
+  #pivot_wider(names_from = Year, values_from = Political.regime)
+
+# View the resulting wide format dataframe
+#View(wide_pol_regime)
+
+# Write the wide format dataframe to a new CSV file
+#write.csv(wide_pol_regime, "/nfs/cfs/home2/zctq/zctqssn/Dissertation/Data sets/Aid data/UK Aid/political_regime_wide.csv", row.names = FALSE)
+
+# Open cleaned pol regome folder
+polreg_clean <- read.csv("political_regime_wide2.csv")
+View(polreg_clean)
+
+merged25 <- merge(merged24, polreg_clean, by = "country", all = TRUE)
+
+merged25 <- merged25 %>%
+  select(country,Code, recog_bin, recog_date, continent, everything())
+
+View(merged25)
+
+# Load in democracy index
+dem_index <- read.csv("democracy-index-eiu.csv")
+View(dem_index)
+
+wide_dem_index <- dem_index %>%
+pivot_wider(names_from = Year, values_from = democracy_eiu)
+View(wide_dem_index)
+
+# Change column names
+colnames(wide_dem_index)[colnames(wide_dem_index) == "Entity"] <- "country" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2006"] <- "DI2006" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2008"] <- "DI2008" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2010"] <- "DI2010" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2011"] <- "DI2011" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2012"] <- "DI2012" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2013"] <- "DI2013" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2014"] <- "DI2014" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2015"] <- "DI2015" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2016"] <- "DI2016" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2016"] <- "DI2016" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2017"] <- "DI2017" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2018"] <- "DI2018" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2019"] <- "DI2019" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2020"] <- "DI2020" 
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2021"] <- "DI2021"
+colnames(wide_dem_index)[colnames(wide_dem_index) == "2022"] <- "DI2022"
+
+
+#write.csv(wide_dem_index, "/nfs/cfs/home2/zctq/zctqssn/Dissertation/Data sets/Aid data/UK Aid/democracy index.csv", row.names = FALSE)
+#write.csv(merged25, "/nfs/cfs/home2/zctq/zctqssn/Dissertation/Data sets/Aid data/UK Aid/merged25.csv", row.names = FALSE)
+
+# Upload file
+dem_index_clean <- read.csv("democracy index clean.csv")
+
+# Merge democracy index scores to the data set
+merged26 <- merge(merged25, dem_index_clean, by = "country", all = TRUE)
+View(merged26)
+
+data2 <- read.csv("final2 palestine var.csv")
+View(data2)
+
+data2 <- data2 %>%
+  mutate(country = case_when(
+    country %in% c("CÃ´te d'Ivoire", "Cote d'Ivoire") ~ "Côte d'Ivoire",
+    country %in% c("CuraÃ§ao", "Curacao") ~ "Curaçao",
+    country %in% c("Vietnam", "VietNam") ~ "Vietnam",
+    country %in% c("Turkey", "TÃ¼rkiye", "Türkiye") ~ "Turkey",
+    country %in% c("Democratic Republic of Congo", "Democratic Republic of the Congo") ~ "Democratic Republic of the Congo",
+    country %in% c("Northern America, Total", "North America, Total") ~ "North America, Total",
+    country %in% c("Czech Republic", "Czechia") ~ "Czechia",
+    country %in% c("Sint Maarten", "Saint Martin") ~ "Saint Martin",
+    country %in% c("Lao People's Democratic Republic", "Laos") ~"Laos",
+    TRUE ~ country
+  ))
+
+
+data2 <- data2 %>%
+  group_by(country) %>%
+  summarize(across(everything(), ~coalesce(.[!is.na(.)][1], NA)), .groups = 'drop')
+
+# Define the row indices to merge: Congo
+row1 <- 55
+row2 <- 56
+
+# Merge the rows using coalesce
+merged_row <- data2 %>%
+  slice(c(row1, row2)) %>%
+  summarise(across(everything(), ~coalesce(.[1], .[2])))
+
+# Replace one of the original rows with the merged row and remove the other row
+data2[row1, ] <- unlist(merged_row)
+data2 <- data2[-row2, ]  # remove row j
+
+# Reset row names if necessary
+rownames(data2) <- NULL
+
+# Print the result to check
+print(data2[row1, ])
+
+# Define the row numbers to merge: Falkland Islands
+row1 <- 83
+row2 <- 84
+
+# Perform the merge using coalesce across all columns
+merged_row <- data2 %>%
+  slice(c(row1, row2)) %>%
+  summarise(across(everything(), ~coalesce(.[1], .[2])), .groups = 'drop')
+
+# Replace one of the original rows with the merged row and remove the other row
+data2[row1, ] <- unlist(merged_row)  # Use unlist to correctly format the row for insertion
+data2 <- data2[-row2, ]  # Remove row2
+
+# Reset row names if necessary
+rownames(data2) <- NULL
+
+# Output the modified data for verification
+print(data2[row1, ])
+
+
+# View the resulting dataframe
+View(data2)
+
+#write.csv(data2, "/nfs/cfs/home2/zctq/zctqssn/Dissertation/Data sets/Aid data/UK Aid/merged data final.csv", row.names = FALSE)
+
+data3 <- read.csv("merged data final2 countries.csv")
+
+data3 <- data3 %>%
+  mutate(country = case_when(
+    country %in% c("Sudan", "Sudan (before 2012)") ~ "Sudan",
+    country %in% c("East Timor", "Timor-Leste") ~ "Timor-Leste",
+    TRUE ~ country
+  ))
+
+
+data3 <- data3 %>%
+  group_by(country) %>%
+  summarize(across(everything(), ~coalesce(.[!is.na(.)][1], NA)), .groups = 'drop')
+
+View(data3)
+write.csv(data2, "/nfs/cfs/home2/zctq/zctqssn/Dissertation/Data sets/Aid data/UK Aid/palestine logit data.csv", row.names = FALSE)
